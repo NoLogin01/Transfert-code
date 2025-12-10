@@ -1,0 +1,113 @@
+Sub ExportVulnerabilitesVersExcel_Mois()
+
+    Dim xl As Object
+    Dim wb As Object
+    Dim ws As Object
+    Dim p As Paragraph
+    Dim txt As String
+    Dim ligne As Long
+
+    Dim Titre As String
+    Dim Description As String
+    Dim Criticite As String
+    Dim DateEmission As String
+
+    Dim Mois As String, Annee As String, FeuilleCible As String
+    Dim section As String
+    
+    ' === OUVERTURE EXCEL ===
+    Set xl = CreateObject("Excel.Application")
+    xl.Visible = True
+    Set wb = xl.Workbooks.Open("C:\Ton\Chemin\suivi_vulnerabilites.xlsx")
+
+    ' === PARCOURS DU WORD ===
+    For Each p In ActiveDocument.Paragraphs
+        
+        txt = Trim(p.Range.Text)
+        If txt = "" Then GoTo NextLoop
+        
+        ' Nouveau titre de vulnérabilité
+        If InStr(txt, "Vulnérabilité") > 0 Then
+            
+            ' Si ce n'est pas la première → écrire dans Excel
+            If Titre <> "" Then
+                
+                ' Trouver la feuille cible selon "DateEmission"
+                If DateEmission <> "" Then
+                    Mois = Format(CDate(DateEmission), "mmmm")
+                    Mois = LCase(Mois) ' ex : janvier, février…
+                    Annee = Year(CDate(DateEmission))
+                    FeuilleCible = Mois & "_" & Annee
+                Else
+                    FeuilleCible = "janvier_2025" ' Valeur par défaut si pas de date trouvée
+                End If
+                
+                On Error Resume Next
+                Set ws = wb.Sheets(FeuilleCible)
+                On Error GoTo 0
+                
+                If ws Is Nothing Then
+                    MsgBox "La feuille '" & FeuilleCible & "' n'existe pas.", vbExclamation
+                    Exit Sub
+                End If
+                
+                ' Chercher la 1ère ligne vide
+                ligne = ws.Cells(ws.Rows.Count, 1).End(-4162).Row + 1
+                
+                ' Écrire dans Excel
+                ws.Cells(ligne, 1).Value = Titre
+                ws.Cells(ligne, 2).Value = Description
+                ws.Cells(ligne, 3).Value = Criticite
+                ws.Cells(ligne, 4).Value = DateEmission
+                
+            End If
+            
+            ' Réinitialiser pour la prochaine vulnérabilité
+            Titre = txt
+            Description = ""
+            Criticite = ""
+            DateEmission = ""
+        
+        ' === DATE ===
+        ElseIf LCase(Left(txt, 5)) = "date:" Then
+            DateEmission = Trim(Replace(txt, "Date:", "", , , vbTextCompare))
+        
+        ' === DESCRIPTION ===
+        ElseIf LCase(Left(txt, 11)) = "description" Then
+            section = "description"
+        
+        ' === CRITICITÉ ===
+        ElseIf InStr(LCase(txt), "criticité") > 0 Then
+            Criticite = Replace(txt, "Criticité :", "")
+        
+        ' === CONTENU DES SECTIONS ===
+        Else
+            Select Case section
+                Case "description"
+                    Description = Description & " " & txt
+            End Select
+        End If
+
+NextLoop:
+    Next p
+    
+    ' === Enregistrer la dernière vulnérabilité ===
+    If Titre <> "" Then
+        
+        Mois = Format(CDate(DateEmission), "mmmm")
+        Mois = LCase(Mois)
+        Annee = Year(CDate(DateEmission))
+        FeuilleCible = Mois & "_" & Annee
+        
+        Set ws = wb.Sheets(FeuilleCible)
+        ligne = ws.Cells(ws.Rows.Count, 1).End(-4162).Row + 1
+
+        ws.Cells(ligne, 1).Value = Titre
+        ws.Cells(ligne, 2).Value = Description
+        ws.Cells(ligne, 3).Value = Criticite
+        ws.Cells(ligne, 4).Value = DateEmission
+    End If
+
+    MsgBox "Export terminé !", vbInformation
+
+End Sub
